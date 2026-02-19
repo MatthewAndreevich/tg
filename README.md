@@ -1,73 +1,91 @@
-# MTProxy Installer (Official Telegram Source Build)
+# MTProxy One-Command Installer (Docker + FakeTLS)
 
-This repository installs MTProxy the same way as the official `TelegramMessenger/MTProxy` guide: build from source and run `mtproto-proxy` with systemd.
+Production-ready installer for **official Telegram MTProxy Docker image**: `telegrammessenger/proxy`.
 
-## One-line install
+No `mtg`, no third-party proxy daemons, no ad/affiliate logic.
+
+## 1. One-line install
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/<USER>/<REPO>/main/install.sh | sudo bash
 ```
 
-## What this installer does
-
-1. Detects Ubuntu/Debian.
-2. Installs official build dependencies from Telegram guide.
-3. Clones/updates `https://github.com/TelegramMessenger/MTProxy` into `/opt/MTProxy`.
-4. Builds with `make`.
-5. Downloads:
-   - `https://core.telegram.org/getProxySecret` -> `proxy-secret`
-   - `https://core.telegram.org/getProxyConfig` -> `proxy-multi.conf`
-6. Installs daily auto-refresh for `proxy-multi.conf` via `systemd timer` (`MTProxyConfigUpdate.timer`).
-7. Asks interactively for:
-   - user `SECRET` (32 hex, or auto-generate)
-   - `TAG` from `@MTProxybot` (optional)
-   - client port (`-H`, default `443`)
-   - local stats port (`-p`, default `8888`)
-   - worker count (`-M`, default `1`)
-8. Creates and enables `/etc/systemd/system/MTProxy.service`.
-
-## Generate SECRET manually
+## 2. How to get SECRET
 
 ```bash
 openssl rand -hex 16
 ```
 
-## Register in @MTProxybot
+This outputs exactly 32 hex symbols (required by installer).
 
-1. Open `@MTProxybot` in Telegram.
-2. Register your server and port.
-3. Add promoted channel if needed.
-4. Copy tag and re-run installer to set `-P <tag>`.
+## 3. How to register proxy in `@MTProxybot`
 
-## Connection links
+1. Open Telegram and start `@MTProxybot`.
+2. Use your server public IP and selected port (default `8443`).
+3. Provide your generated `SECRET` when requested.
+4. Copy the resulting `TAG` from the bot.
+5. Run installer and paste that `TAG`.
 
-Installer prints:
+## 4. How to set promoted channel
+
+1. Configure promoted channel via `@MTProxybot` for your registered proxy.
+2. Reuse/update the `TAG` if bot gives a new one.
+3. Re-run `install.sh` safely (idempotent) to apply updates.
+
+## 5. How to get connection link
+
+Installer prints a final link in this format:
 
 ```text
-tg://proxy?server=IP&port=PORT&secret=SECRET
-tg://proxy?server=IP&port=PORT&secret=ddSECRET
+tg://proxy?server=IP&port=PORT&secret=EE_SECRET_HEXDOMAIN
 ```
 
-`dd` variant enables random padding on client side.
+Where:
+- `EE_SECRET_HEXDOMAIN = ee + SECRET + hex(TLS_DOMAIN)`
+- Default TLS domain: `cloudflare.com`
 
-## Status / Uninstall
+Installer auto-detects public IPv4 and auto-converts TLS domain to hex.
+
+## 6. Security notes
+
+- Use only your own trusted server.
+- Keep SSH (`22`) restricted where possible.
+- Use strong random `SECRET` values.
+- Re-run installer after changing `TAG`, `SECRET`, port, or domain.
+- Script has no telemetry, ads, or external affiliate links.
+
+## Repository structure
+
+```text
+.
+├── install.sh
+├── uninstall.sh
+├── status.sh
+├── README.md
+└── .gitignore
+```
+
+## Usage
+
+### Install / reconfigure
+
+```bash
+sudo bash install.sh
+```
+
+### Status
 
 ```bash
 bash status.sh
+```
+
+### Uninstall MTProxy container
+
+```bash
 sudo bash uninstall.sh
 ```
 
-## Daily config refresh
-
-`install.sh` also creates:
-
-- `/usr/local/bin/mtproxy-refresh-config.sh`
-- `/etc/systemd/system/MTProxyConfigUpdate.service`
-- `/etc/systemd/system/MTProxyConfigUpdate.timer`
-
-The timer runs daily (`OnCalendar=daily`) and refreshes `proxy-multi.conf` as recommended in the official MTProxy README.
-
-## Push to GitHub
+## Local repo setup commands
 
 ```bash
 git init
@@ -78,7 +96,9 @@ git remote add origin https://github.com/<USER>/<REPO>.git
 git push -u origin main
 ```
 
-## Notes
+## Non-interactive example
 
-- This setup intentionally follows official source-based MTProxy flow.
-- Re-run `install.sh` anytime to rotate secret/tag/ports.
+```bash
+SECRET=... TAG=... CLIENT_PORT=8443 TLS_DOMAIN=cloudflare.com WORKERS=1 \
+  curl -sSL https://raw.githubusercontent.com/<USER>/<REPO>/main/install.sh | sudo bash
+```

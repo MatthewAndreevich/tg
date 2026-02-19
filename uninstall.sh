@@ -1,14 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-SERVICE_NAME="MTProxy.service"
-SERVICE_PATH="/etc/systemd/system/${SERVICE_NAME}"
-CONFIG_UPDATE_SERVICE_NAME="MTProxyConfigUpdate.service"
-CONFIG_UPDATE_TIMER_NAME="MTProxyConfigUpdate.timer"
-CONFIG_UPDATE_SERVICE_PATH="/etc/systemd/system/${CONFIG_UPDATE_SERVICE_NAME}"
-CONFIG_UPDATE_TIMER_PATH="/etc/systemd/system/${CONFIG_UPDATE_TIMER_NAME}"
-CONFIG_UPDATE_SCRIPT_PATH="/usr/local/bin/mtproxy-refresh-config.sh"
-INSTALL_DIR="/opt/MTProxy"
+CONTAINER_NAME="mtproxy"
+IMAGE="telegrammessenger/proxy"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -24,55 +18,29 @@ if [[ "${EUID}" -ne 0 ]]; then
   exit 1
 fi
 
-if command -v systemctl >/dev/null 2>&1; then
-  if systemctl list-unit-files | grep -Fq "${CONFIG_UPDATE_TIMER_NAME}"; then
-    info "Stopping and disabling ${CONFIG_UPDATE_TIMER_NAME}..."
-    systemctl stop "${CONFIG_UPDATE_TIMER_NAME}" || true
-    systemctl disable "${CONFIG_UPDATE_TIMER_NAME}" || true
-  fi
-
-  if systemctl list-unit-files | grep -Fq "${CONFIG_UPDATE_SERVICE_NAME}"; then
-    systemctl stop "${CONFIG_UPDATE_SERVICE_NAME}" || true
-  fi
-
-  if systemctl list-unit-files | grep -Fq "${SERVICE_NAME}"; then
-    info "Stopping and disabling ${SERVICE_NAME}..."
-    systemctl stop "${SERVICE_NAME}" || true
-    systemctl disable "${SERVICE_NAME}" || true
-  fi
+if ! command -v docker >/dev/null 2>&1; then
+  error "Docker not found. Nothing to uninstall."
+  exit 1
 fi
 
-if [[ -f "${CONFIG_UPDATE_TIMER_PATH}" ]]; then
-  info "Removing timer file ${CONFIG_UPDATE_TIMER_PATH}..."
-  rm -f "${CONFIG_UPDATE_TIMER_PATH}"
-fi
-
-if [[ -f "${CONFIG_UPDATE_SERVICE_PATH}" ]]; then
-  info "Removing service file ${CONFIG_UPDATE_SERVICE_PATH}..."
-  rm -f "${CONFIG_UPDATE_SERVICE_PATH}"
-fi
-
-if [[ -f "${SERVICE_PATH}" ]]; then
-  info "Removing service file ${SERVICE_PATH}..."
-  rm -f "${SERVICE_PATH}"
-fi
-
-if [[ -f "${CONFIG_UPDATE_SCRIPT_PATH}" ]]; then
-  info "Removing helper script ${CONFIG_UPDATE_SCRIPT_PATH}..."
-  rm -f "${CONFIG_UPDATE_SCRIPT_PATH}"
-fi
-
-if command -v systemctl >/dev/null 2>&1; then
-  systemctl daemon-reload || true
-fi
-
-read -r -p "Remove source directory ${INSTALL_DIR}? [y/N]: " remove_src
-remove_src="${remove_src,,}"
-if [[ "${remove_src}" == "y" || "${remove_src}" == "yes" ]]; then
-  rm -rf "${INSTALL_DIR}"
-  success "Removed ${INSTALL_DIR}."
+if docker ps -a --format '{{.Names}}' | grep -Fxq "${CONTAINER_NAME}"; then
+  info "Stopping and removing container ${CONTAINER_NAME}..."
+  docker rm -f "${CONTAINER_NAME}" >/dev/null
+  success "Container removed."
 else
-  info "Kept ${INSTALL_DIR}."
+  info "Container ${CONTAINER_NAME} not found."
 fi
 
-success "Uninstall complete."
+read -r -p "Remove Docker image ${IMAGE}? [y/N]: " remove_image
+remove_image="${remove_image,,}"
+if [[ "${remove_image}" == "y" || "${remove_image}" == "yes" ]]; then
+  if docker image inspect "${IMAGE}" >/dev/null 2>&1; then
+    info "Removing image ${IMAGE}..."
+    docker rmi "${IMAGE}" >/dev/null || true
+    success "Image removal requested."
+  else
+    info "Image ${IMAGE} not present."
+  fi
+fi
+
+success "Uninstall complete. Docker remains installed."

@@ -1,30 +1,33 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-SERVICE_NAME="MTProxy.service"
-CONFIG_UPDATE_SERVICE_NAME="MTProxyConfigUpdate.service"
-CONFIG_UPDATE_TIMER_NAME="MTProxyConfigUpdate.timer"
+CONTAINER_NAME="mtproxy"
 
-if ! command -v systemctl >/dev/null 2>&1; then
-  echo "systemctl is not available on this host."
+if ! command -v docker >/dev/null 2>&1; then
+  echo "Docker is not installed."
   exit 1
 fi
 
-echo "=== Service status ==="
-systemctl status "${SERVICE_NAME}" --no-pager || true
+echo "=== Docker service ==="
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl is-active docker 2>/dev/null || true
+else
+  echo "systemctl not available"
+fi
 
 echo
-echo "=== Config update timer ==="
-systemctl status "${CONFIG_UPDATE_TIMER_NAME}" --no-pager || true
+echo "=== Container state ==="
+if docker ps -a --format '{{.Names}}' | grep -Fxq "${CONTAINER_NAME}"; then
+  docker ps -a --filter "name=^/${CONTAINER_NAME}$" --format 'Name={{.Names}} Status={{.Status}} Ports={{.Ports}}'
+else
+  echo "Container ${CONTAINER_NAME} not found"
+  exit 0
+fi
 
 echo
-echo "=== Last config refresh run ==="
-journalctl -u "${CONFIG_UPDATE_SERVICE_NAME}" -n 20 --no-pager || true
+echo "=== Port mapping ==="
+docker port "${CONTAINER_NAME}" || true
 
 echo
-echo "=== Last logs (tail 80) ==="
-journalctl -u "${SERVICE_NAME}" -n 80 --no-pager || true
-
-echo
-echo "=== Listening sockets (443/8443/8888 typical) ==="
-ss -ltnp 2>/dev/null | grep -E ':(443|8443|8888)\b' || true
+echo "=== Recent logs (tail 50) ==="
+docker logs --tail 50 "${CONTAINER_NAME}" 2>&1 || true
