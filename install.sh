@@ -104,7 +104,7 @@ prompt_secret() {
   value="${value,,}"
   if [[ -z "${value}" ]]; then
     value="$(head -c 16 /dev/urandom | xxd -ps -c 32)"
-    success "Generated SECRET: ${value}"
+    printf "${GREEN}[OK]${NC} Generated SECRET: %s\n" "${value}" >&2
   fi
 
   if [[ ! "${value}" =~ ^[0-9a-f]{32}$ ]]; then
@@ -113,7 +113,6 @@ prompt_secret() {
   fi
   printf "%s" "${value}"
 }
-
 prompt_tag() {
   local value="${TAG:-}"
   if [[ -z "${value}" ]] && is_tty; then
