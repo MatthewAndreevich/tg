@@ -186,7 +186,7 @@ prompt_secret() {
 
 prompt_tag() {
   local value="${TAG:-}"
-  if [[ -z "${value}" && is_tty ]]; then
+  if [[ -z "" ]] && is_tty; then
     read -r -p "Enter TAG from @MTProxybot (32 hex chars, optional): " value
   fi
   value="${value,,}"
