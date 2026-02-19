@@ -35,6 +35,10 @@ require_root() {
   fi
 }
 
+is_tty() {
+  [[ -t 0 ]]
+}
+
 detect_os() {
   if [[ ! -f /etc/os-release ]]; then
     error "Cannot detect OS. /etc/os-release not found."
@@ -158,8 +162,15 @@ open_firewall_ports() {
 }
 
 prompt_secret() {
-  local value
-  read -r -p "Enter user SECRET (32 hex chars, leave empty to auto-generate): " value
+  local value="${SECRET:-}"
+  if [[ -z "${value}" ]]; then
+    if is_tty; then
+      read -r -p "Enter user SECRET (32 hex chars, leave empty to auto-generate): " value
+    else
+      value=""
+    fi
+  fi
+
   value="${value,,}"
   if [[ -z "${value}" ]]; then
     value="$(head -c 16 /dev/urandom | xxd -ps -c 32)"
@@ -174,8 +185,10 @@ prompt_secret() {
 }
 
 prompt_tag() {
-  local value
-  read -r -p "Enter TAG from @MTProxybot (32 hex chars, optional): " value
+  local value="${TAG:-}"
+  if [[ -z "${value}" && is_tty ]]; then
+    read -r -p "Enter TAG from @MTProxybot (32 hex chars, optional): " value
+  fi
   value="${value,,}"
   if [[ -n "${value}" && ! "${value}" =~ ^[0-9a-f]{32}$ ]]; then
     error "Invalid TAG. Expected exactly 32 hex chars or empty value."
@@ -187,8 +200,17 @@ prompt_tag() {
 prompt_port() {
   local label="$1"
   local default_value="$2"
-  local value
-  read -r -p "${label} [${default_value}]: " value
+  local env_value="$3"
+  local value="${env_value:-}"
+
+  if [[ -z "${value}" ]]; then
+    if is_tty; then
+      read -r -p "${label} [${default_value}]: " value
+    else
+      value="${default_value}"
+    fi
+  fi
+
   value="${value:-$default_value}"
   if [[ ! "${value}" =~ ^[0-9]{1,5}$ ]] || (( value < 1 || value > 65535 )); then
     error "Invalid port: ${value}. Expected 1..65535."
@@ -198,8 +220,15 @@ prompt_port() {
 }
 
 prompt_workers() {
-  local value
-  read -r -p "Enter workers count [${DEFAULT_WORKERS}]: " value
+  local value="${WORKERS:-}"
+  if [[ -z "${value}" ]]; then
+    if is_tty; then
+      read -r -p "Enter workers count [${DEFAULT_WORKERS}]: " value
+    else
+      value="${DEFAULT_WORKERS}"
+    fi
+  fi
+
   value="${value:-$DEFAULT_WORKERS}"
   if [[ ! "${value}" =~ ^[0-9]+$ ]] || (( value < 1 )); then
     error "Invalid workers count. Expected integer >= 1."
@@ -324,8 +353,8 @@ main() {
   local secret tag client_port stats_port workers public_ip
   secret="$(prompt_secret)"
   tag="$(prompt_tag)"
-  client_port="$(prompt_port "Enter client listening port (-H)" "${DEFAULT_CLIENT_PORT}")"
-  stats_port="$(prompt_port "Enter local stats port (-p)" "${DEFAULT_STATS_PORT}")"
+  client_port="$(prompt_port "Enter client listening port (-H)" "${DEFAULT_CLIENT_PORT}" "${CLIENT_PORT:-}")"
+  stats_port="$(prompt_port "Enter local stats port (-p)" "${DEFAULT_STATS_PORT}" "${STATS_PORT:-}")"
   workers="$(prompt_workers)"
 
   open_firewall_ports "${client_port}"
